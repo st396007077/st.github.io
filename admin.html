@@ -12,11 +12,16 @@
   .login button{width:100%;padding:12px;background:#007bff;color:white;border:none;border-radius:5px}
   .container{display:none;max-width:900px;margin:0 auto;background:white;padding:20px;border-radius:10px}
   h1{margin-bottom:20px;text-align:center}
-  .tools{display:flex;gap:10px;margin-bottom:15px}
+  .tools{display:flex;gap:10px;margin-bottom:15px;align-items:center;justify-content:space-between}
+  .tools-right{display:flex;gap:10px}
   button{padding:8px 16px;background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer}
+  button.del-btn{background:#dc3545}
+  button.exit-btn{background:#6c757d}
   table{width:100%;border-collapse:collapse}
   th,td{border:1px solid #ddd;padding:10px;text-align:left}
   th{background:#f8f9fa}
+  /* 详情换行优化 */
+  .detail-cell{max-width:200px;word-break:break-all}
 </style>
 </head>
 <body>
@@ -32,8 +37,13 @@
 <div class="container" id="adminBox">
   <h1>订单管理</h1>
   <div class="tools">
-    <button onclick="load()">刷新</button>
-    <button onclick="exportExcel()">导出 Excel</button>
+    <div class="tools-left">
+      <button onclick="load()">刷新</button>
+      <button onclick="exportExcel()">导出 Excel</button>
+    </div>
+    <div class="tools-right">
+      <button class="exit-btn" onclick="logout()">退出登录</button>
+    </div>
   </div>
   <table>
     <thead>
@@ -43,6 +53,7 @@
         <th>金额</th>
         <th>时间</th>
         <th>详情</th>
+        <th>操作</th> <!-- 新增操作列 -->
       </tr>
     </thead>
     <tbody id="list"></tbody>
@@ -68,6 +79,17 @@ function login(){
   load();
 }
 
+// 退出登录（新增）
+function logout(){
+  if(confirm('确定要退出登录吗？')){
+    // 重置界面状态
+    document.getElementById('loginBox').style.display = 'block';
+    document.getElementById('adminBox').style.display = 'none';
+    document.getElementById('pwd').value = ''; // 清空密码框
+    orderData = []; // 清空订单数据
+  }
+}
+
 // 加载订单
 function load(){
   fetch(SERVER_URL + `/api/getAllOrders?pwd=${PWD}`)
@@ -80,7 +102,10 @@ function load(){
           <td>${item.userName}</td>
           <td>${item.total}</td>
           <td>${item.createTime}</td>
-          <td>${item.carList.map(i=>i.name).join('，')}</td>
+          <!-- 优化详情显示：包含班次+学校信息 -->
+          <td class="detail-cell">${item.carList.map(i=>`${i.name}（班次：${i.class || '无'}，学校：${i.school || '无'}）`).join('，')}</td>
+          <!-- 新增删除按钮 -->
+          <td><button class="del-btn" onclick="deleteOrder(${item.id})">删除</button></td>
         </tr>
       `).join('');
       document.getElementById('list').innerHTML = html;
@@ -88,19 +113,53 @@ function load(){
       alert('密码错误');
       location.reload();
     }
-  })
+  }).catch(err=>{
+    console.error('加载订单失败：', err);
+    alert('加载订单失败，请检查服务器连接');
+  });
 }
 
-// 导出 Excel
+// 删除订单（新增）
+function deleteOrder(orderId){
+  if(!confirm(`确定要删除ID为 ${orderId} 的订单吗？此操作不可恢复！`)){
+    return;
+  }
+
+  // 发送删除请求到服务器
+  fetch(`${SERVER_URL}/api/deleteOrder?pwd=${PWD}`, {
+    method: 'POST', // 建议用POST，也可根据后端接口调整为DELETE
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ id: orderId })
+  })
+  .then(res=>res.json())
+  .then(res=>{
+    if(res.code===0){
+      alert('删除成功！');
+      load(); // 重新加载订单列表
+    }else{
+      alert(`删除失败：${res.msg || '未知错误'}`);
+    }
+  })
+  .catch(err=>{
+    console.error('删除订单失败：', err);
+    alert('删除订单失败，请检查服务器连接');
+  });
+}
+
+// 导出 Excel（优化详情导出）
 function exportExcel(){
-  const data = [['ID','姓名','总金额','提交时间','详情']];
+  const data = [['ID','姓名','总金额','提交时间','详情','操作']];
   orderData.forEach(item=>{
     data.push([
       item.id,
       item.userName,
       item.total,
       item.createTime,
-      item.carList.map(i=>i.name).join(' | ')
+      // 导出时也包含班次和学校信息
+      item.carList.map(i=>`${i.name}（班次：${i.class || '无'}，学校：${i.school || '无'}）`).join(' | '),
+      '删除操作' // Excel中标记操作列含义
     ]);
   });
   const ws = XLSX.utils.aoa_to_sheet(data);

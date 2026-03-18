@@ -248,17 +248,24 @@
         <!-- 交费说明 -->
         <div class="desc">
             <strong>交费操作说明：</strong><br>
-            1. 请准确填写个人姓名，用于乘车核验；<br>
-            2. 勾选需要乘坐的车次，可多选；<br>
-            3. 选择对应乘车学校，系统自动计算总费用；<br>
-            4. 确认费用后点击支付，选择支付方式完成缴费；<br>
-            5. 支付成功后可查看乘车订阅信息。
+            1. 请准确填写个人姓名和联系电话，用于乘车核验；<br>
+            2. 勾选需要乘坐的车次（可多选），系统自动计算总费用；<br>
+            3. 确认费用后点击支付，选择支付方式完成交费；<br>
+            4. 支付完成后需要返回页面点击“已完成支付”，才能提交乘坐信息；<br>
+            5. 点击“交费信息查询”可查看乘车订阅信息及修改。
         </div>
 
         <!-- 姓名填写 -->
         <div class="form-item">
-            <label>乘车人姓名</label>
+            <label>乘车人姓名 <span style="color:red">*</span></label>
             <input type="text" id="userName" placeholder="请输入您的真实姓名">
+        </div>
+
+        <!-- ✅ 新增：联系电话（必填） -->
+        <div class="form-item">
+            <label>联系电话 <span style="color:red">*</span></label>
+            <input type="tel" id="userPhone" placeholder="请输入您的手机号码" maxlength="11">
+            <div class="error-tip" id="phoneError">请输入有效的11位手机号码</div>
         </div>
 
         <!-- 车次选择 -->
@@ -376,7 +383,7 @@
                         <option>XX理工学院</option>
                         <option>XX财经大学</option>
                     </select>
-                    <select class="school-select-input" data-type="5">
+                    <select class="school-select-input" data-type="6">
                         <option value="">请选择送达学校</option>
                         <option>XX职业技术学院</option>
                         <option>XX师范大学</option>
@@ -415,6 +422,7 @@
             <img class="qrcode-img" id="qrImg" src="">
             <p class="pay-tip" id="payTip">请保存二维码到微信扫码完成支付</p>
             <p class="pay-remark">注意：扫码支付时请备注姓名，否则无法统计信息！！！</p>
+            <p class="pay-remark">支付完成后需要返回页面点击“已完成支付”，才能提交乘坐信息！！！</p>
             
             <div class="modal-btns" style="margin-top:25px">
                 <button class="close-btn" style="background:#6c757d" onclick="closeQRModal()">关闭</button>
@@ -450,6 +458,9 @@
         // ✅【唯一需要你修改的地方】服务器地址
         // ==========================================
         const SERVER_URL = "https://zikaocar-server.onrender.com";
+        
+        // ✅ 新增：存储选择的支付方式
+        let selectedPayType = '';
 
         // 勾选车次显示学校选择
         document.querySelectorAll('.car-check').forEach(item => {
@@ -469,6 +480,12 @@
                 document.getElementById(`error${type}`).style.display = 'none';
             })
         })
+
+        // ✅ 新增：验证手机号码格式
+        function validatePhone(phone) {
+            const reg = /^1[3-9]\d{9}$/;
+            return reg.test(phone);
+        }
 
         // 校验所有已勾选车次的学校是否选择
         function checkSchoolSelected(){
@@ -503,13 +520,25 @@
             return total;
         }
 
-        // 打开支付弹窗（增加学校校验）
+        // 打开支付弹窗（增加学校校验 + 手机号校验）
         function openPayModal(){
             const name = document.getElementById('userName').value.trim();
+            const phone = document.getElementById('userPhone').value.trim();
             const total = calcTotal();
             
             if(!name){
                 alert('请填写乘车人姓名！');
+                return;
+            }
+            // ✅ 新增：手机号校验
+            if(!phone){
+                alert('请填写联系电话！');
+                document.getElementById('userPhone').focus();
+                return;
+            }
+            if(!validatePhone(phone)){
+                document.getElementById('phoneError').style.display = 'block';
+                document.getElementById('userPhone').focus();
                 return;
             }
             if(total <= 0){
@@ -529,7 +558,7 @@
             document.getElementById('qrModal').style.display = 'none';
         }
 
-        // 显示收款码
+        // 显示收款码（记录支付方式）
         function showQR(type){
             const total = calcTotal();
             document.getElementById('payModal').style.display = 'none';
@@ -538,14 +567,15 @@
             const qrImg = document.getElementById('qrImg');
             const payTip = document.getElementById('payTip');
             
+            // ✅ 新增：记录选择的支付方式
+            selectedPayType = type === 'wechat' ? '微信支付' : '支付宝支付';
+            
             if(type === 'wechat'){
                 qrTitle.innerText = `微信收款码 | 需支付：${total} 元`;
-                // ✅ 修复：https + 英文引号
                 qrImg.src = 'https://st396007077.github.io/st.github.io/images/WX.png';
                 payTip.innerText = '请保存二维码到微信扫码完成支付';
             }else{
                 qrTitle.innerText = `支付宝收款码 | 需支付：${total} 元`;
-                // ✅ 修复：https + 英文引号
                 qrImg.src = 'https://st396007077.github.io/st.github.io/images/ZFB.jpg';
                 payTip.innerText = '请保存二维码到支付宝扫码完成支付';
             }
@@ -553,11 +583,12 @@
         }
 
         // ==========================================
-        // ✅ 改造：支付成功 → 提交数据到后端
+        // ✅ 改造：支付成功 → 提交数据到后端（新增电话+支付方式）
         // ==========================================
         function paySuccess(){
             document.getElementById('qrModal').style.display = 'none';
             const name = document.getElementById('userName').value.trim();
+            const phone = document.getElementById('userPhone').value.trim(); // ✅ 新增
             const total = calcTotal();
             
             let userCarList = [];
@@ -579,17 +610,25 @@
                 userCarList.push(carInfo);
             });
 
-            // 提交到后端
+            // 提交到后端（新增phone和payType字段）
             fetch(SERVER_URL + "/api/submitOrder", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ userName: name, total, carList: userCarList })
+                body: JSON.stringify({ 
+                    userName: name, 
+                    userPhone: phone, // ✅ 新增
+                    total, 
+                    carList: userCarList,
+                    payType: selectedPayType // ✅ 新增
+                })
             })
             .then(res => res.json())
             .then(data => {
                 if(data.code === 0){
                     let info = `
                         <strong>乘车人：</strong>${name}<br>
+                        <strong>联系电话：</strong>${phone}<br> <!-- ✅ 新增 -->
+                        <strong>支付方式：</strong>${selectedPayType}<br> <!-- ✅ 新增 -->
                         <strong>总费用：</strong>${total} 元<br>
                         <strong>订单号：</strong>${data.orderId}<br>
                         <strong>已选班次详情：</strong><br>
@@ -630,7 +669,7 @@
         }
 
         // ==========================================
-        // ✅ 改造：查询从后端获取数据
+        // ✅ 改造：查询从后端获取数据（显示电话+支付方式）
         // ==========================================
         function searchPayInfo(){
             const queryName = document.getElementById('queryName').value.trim();
@@ -654,6 +693,8 @@
                         html += `<div style="border-bottom:1px solid #eee;padding:10px 0">`;
                         html += `<strong>第${idx+1}笔订单（${item.createTime}）</strong><br>`;
                         html += `<strong>乘车人：</strong>${item.userName}<br>`;
+                        html += `<strong>联系电话：</strong>${item.userPhone || '未填写'}<br>`; <!-- ✅ 新增 -->
+                        html += `<strong>支付方式：</strong>${item.payType || '未选择'}<br>`; <!-- ✅ 新增 -->
                         html += `<strong>总费用：</strong>${item.total} 元<br>`;
                         html += `<strong>乘车信息：</strong><br>`;
                         item.carList.forEach(c => {

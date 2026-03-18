@@ -97,7 +97,7 @@
   }
   table{
     width:100%;
-    min-width:1200px;
+    min-width: 1400px;
     border-collapse:collapse;
   }
   th,td{
@@ -113,10 +113,18 @@
   .name-col{width:80px}
   .phone-col{width:110px}
   .paytype-col{width:100px}
+  .pay-record-col{width: 250px;} /* 新增支付记录列宽度 */
   .money-col{width:80px}
   .oper-col{width:80px}
   .class-col{width:120px}
   .remark-col{width:150px}
+  /* 支付记录换行显示 */
+  .pay-record {
+    white-space: pre-line;
+    text-align: left;
+    padding: 5px;
+    line-height: 1.4;
+  }
 </style>
 </head>
 
@@ -147,9 +155,10 @@
           <th class="id-col">订单ID</th>
           <th class="name-col">姓名</th>
           <th class="phone-col">电话</th>
-          <th class="paytype-col">支付方式</th>
-          <th class="money-col">金额</th>
-          <th class="time-col">提交时间</th>
+          <th class="paytype-col">最后支付方式</th>
+          <th class="pay-record-col">支付记录（每一笔）</th> <!-- 新增列 -->
+          <th class="money-col">总金额</th>
+          <th class="time-col">最后提交时间</th>
           <th class="class-col">4月11日早送</th>
           <th class="class-col">4月11日晚接</th>
           <th class="class-col">4月12日早送</th>
@@ -172,7 +181,7 @@ const PWD = "sutong5560";
 let orderData = [];
 let filteredOrderData = [];
 
-// 【修复核心】补充缺失的login函数
+// 登录函数
 function login(){
   const val = document.getElementById('pwd').value;
   if(val !== PWD){
@@ -209,13 +218,13 @@ async function load() {
   }
 }
 
-// 渲染订单表格
+// 渲染订单表格（新增支付记录展示）
 function renderTable() {
   const list = document.getElementById('list');
   list.innerHTML = '';
   
   if(filteredOrderData.length === 0) {
-    list.innerHTML = '<tr><td colspan="13">暂无数据</td></tr>';
+    list.innerHTML = '<tr><td colspan="14">暂无数据</td></tr>';
     return;
   }
   
@@ -229,12 +238,21 @@ function renderTable() {
       if(item.from && item.to) return `${item.from}→${item.to}`;
       return '-';
     };
+
+    // 格式化支付记录（每一笔分行显示）
+    const formatPaymentRecords = () => {
+      if(!order.paymentRecords || order.paymentRecords.length === 0) return '-';
+      return order.paymentRecords.map((record, index) => {
+        return `第${index+1}笔：${record.payType} ${record.amount}元 ${record.time}`;
+      }).join('\n'); // 用换行符分隔，配合CSS的pre-line显示
+    };
     
     tr.innerHTML = `
       <td>${order.orderId || '-'}</td>
       <td>${order.userName || '-'}</td>
       <td>${order.userPhone || '-'}</td>
       <td>${order.payType || '-'}</td>
+      <td class="pay-record">${formatPaymentRecords()}</td> <!-- 新增支付记录列 -->
       <td>${order.total || 0}</td>
       <td>${order.createTime || '-'}</td>
       <td>${getClassInfo('4月11日早送')}</td>
@@ -286,7 +304,7 @@ function resetSearch() {
   renderTable();
 }
 
-// 导出Excel
+// 导出Excel（包含支付记录）
 function exportExcel() {
   if(filteredOrderData.length === 0) { 
     alert('暂无数据可导出'); 
@@ -301,13 +319,21 @@ function exportExcel() {
       if(i.from&&i.to) return i.from+'→'+i.to;
       return '-';
     };
+
+    // 格式化支付记录为Excel可显示的文本
+    const getPaymentRecords = () => {
+      if(!o.paymentRecords || o.paymentRecords.length === 0) return '-';
+      return o.paymentRecords.map((r, i) => `第${i+1}笔：${r.payType} ${r.amount}元 ${r.time}`).join('；');
+    };
+
     return {
       订单ID: o.orderId || '-',
       姓名: o.userName || '-',
       电话: o.userPhone || '-',
-      支付方式: o.payType || '-',
-      金额: o.total || 0,
-      提交时间: o.createTime || '-',
+      最后支付方式: o.payType || '-',
+      支付记录: getPaymentRecords(), // 新增支付记录字段
+      总金额: o.total || 0,
+      最后提交时间: o.createTime || '-',
       '4月11日早送': getInfo('4月11日早送'),
       '4月11日晚接': getInfo('4月11日晚接'),
       '4月12日早送': getInfo('4月12日早送'),

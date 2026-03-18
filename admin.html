@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>订单管理后台</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{padding:20px;background:#f5f7fa;font-family:Arial}
+  .login{max-width:400px;margin:50px auto;background:white;padding:30px;border-radius:10px;box-shadow:0 2px 10px #00000010}
+  .login input{width:100%;padding:12px;margin:10px 0;border:1px solid #ddd;border-radius:5px}
+  .login button{width:100%;padding:12px;background:#007bff;color:white;border:none;border-radius:5px}
+  .container{display:none;max-width:900px;margin:0 auto;background:white;padding:20px;border-radius:10px}
+  h1{margin-bottom:20px;text-align:center}
+  .tools{display:flex;gap:10px;margin-bottom:15px}
+  button{padding:8px 16px;background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer}
+  table{width:100%;border-collapse:collapse}
+  th,td{border:1px solid #ddd;padding:10px;text-align:left}
+  th{background:#f8f9fa}
+</style>
+</head>
+<body>
+
+<!-- 登录界面 -->
+<div class="login" id="loginBox">
+  <h2>后台登录</h2>
+  <input type="password" id="pwd" placeholder="请输入管理密码">
+  <button onclick="login()">登录</button>
+</div>
+
+<!-- 管理界面 -->
+<div class="container" id="adminBox">
+  <h1>订单管理</h1>
+  <div class="tools">
+    <button onclick="load()">刷新</button>
+    <button onclick="exportExcel()">导出 Excel</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>姓名</th>
+        <th>金额</th>
+        <th>时间</th>
+        <th>详情</th>
+      </tr>
+    </thead>
+    <tbody id="list"></tbody>
+  </table>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script>
+// ==============================================
+// 👉 【必须修改】服务器地址 + 后台密码
+// ==============================================
+const SERVER_URL = "http://localhost:3000";
+const PWD = "sutong5560";
+
+let orderData = [];
+
+// 登录
+function login(){
+  const val = document.getElementById('pwd').value;
+  if(val !== PWD){alert('密码错误');return}
+  document.getElementById('loginBox').style.display = 'none';
+  document.getElementById('adminBox').style.display = 'block';
+  load();
+}
+
+// 加载订单
+function load(){
+  fetch(SERVER_URL + `/api/getAllOrders?pwd=${PWD}`)
+  .then(res=>res.json()).then(res=>{
+    if(res.code===0){
+      orderData = res.data;
+      const html = res.data.map(item=>`
+        <tr>
+          <td>${item.id}</td>
+          <td>${item.userName}</td>
+          <td>${item.total}</td>
+          <td>${item.createTime}</td>
+          <td>${item.carList.map(i=>i.name).join('，')}</td>
+        </tr>
+      `).join('');
+      document.getElementById('list').innerHTML = html;
+    }else if(res.code===-2){
+      alert('密码错误');
+      location.reload();
+    }
+  })
+}
+
+// 导出 Excel
+function exportExcel(){
+  const data = [['ID','姓名','总金额','提交时间','详情']];
+  orderData.forEach(item=>{
+    data.push([
+      item.id,
+      item.userName,
+      item.total,
+      item.createTime,
+      item.carList.map(i=>i.name).join(' | ')
+    ]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "订单");
+  XLSX.writeFile(wb, "订单列表.xlsx");
+}
+</script>
+</body>
+</html>

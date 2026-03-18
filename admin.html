@@ -17,11 +17,42 @@
   button{padding:8px 16px;background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer}
   button.del-btn{background:#dc3545}
   button.exit-btn{background:#6c757d}
-  table{width:100%;border-collapse:collapse}
-  th,td{border:1px solid #ddd;padding:10px;text-align:left}
-  th{background:#f8f9fa}
-  /* 详情换行优化 */
-  .detail-cell{max-width:200px;word-break:break-all}
+  
+  /* ✅ 核心优化：表格容器（实现左右滑动） */
+  .table-container{
+    overflow-x: auto; /* 横向滚动 */
+    margin: 10px 0;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px #00000010;
+  }
+  table{
+    width: 100%;
+    min-width: 1000px; /* 最小宽度，确保小屏幕也能滑动 */
+    border-collapse: collapse;
+  }
+  th,td{
+    border:1px solid #ddd;
+    padding: 8px 6px; /* 缩小内边距 */
+    text-align: center; /* 居中显示，更整洁 */
+    white-space: nowrap; /* 禁止文字换行 */
+  }
+  th{
+    background:#f8f9fa;
+    font-size: 14px;
+  }
+  td{
+    font-size: 13px;
+  }
+  /* ✅ ID列、时间列宽度缩短 */
+  .id-col{width: 80px !important;}
+  .time-col{width: 150px !important;}
+  .name-col{width: 80px !important;}
+  .money-col{width: 80px !important;}
+  .oper-col{width: 80px !important;}
+  /* 班次列统一宽度 */
+  .class-col{width: 120px !important;}
+  /* 空数据样式 */
+  .empty-cell{color: #999;}
 </style>
 </head>
 <body>
@@ -45,25 +76,35 @@
       <button class="exit-btn" onclick="logout()">退出登录</button>
     </div>
   </div>
-  <table>
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>姓名</th>
-        <th>金额</th>
-        <th>时间</th>
-        <th>详情</th>
-        <th>操作</th> <!-- 新增操作列 -->
-      </tr>
-    </thead>
-    <tbody id="list"></tbody>
-  </table>
+  
+  <!-- ✅ 表格容器（实现左右滑动） -->
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th class="id-col">订单ID</th>
+          <th class="name-col">姓名</th>
+          <th class="money-col">金额(元)</th>
+          <th class="time-col">提交时间</th>
+          <!-- ✅ 班次分列显示（每班次一列） -->
+          <th class="class-col">4月11日早送</th>
+          <th class="class-col">4月11日晚接</th>
+          <th class="class-col">4月12日早送</th>
+          <th class="class-col">4月12日晚接</th>
+          <th class="class-col">4月11日中午考点更换</th>
+          <th class="class-col">4月12日中午考点更换</th>
+          <th class="oper-col">操作</th>
+        </tr>
+      </thead>
+      <tbody id="list"></tbody>
+    </table>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script>
 // ==============================================
-// 👉 【必须修改】服务器地址 + 后台密码
+// 👉 替换为你的Render后端地址
 // ==============================================
 const SERVER_URL = "https://zikaocar-server.onrender.com";
 const PWD = "sutong5560";
@@ -79,93 +120,171 @@ function login(){
   load();
 }
 
-// 退出登录（新增）
+// 退出登录
 function logout(){
   if(confirm('确定要退出登录吗？')){
-    // 重置界面状态
     document.getElementById('loginBox').style.display = 'block';
     document.getElementById('adminBox').style.display = 'none';
-    document.getElementById('pwd').value = ''; // 清空密码框
-    orderData = []; // 清空订单数据
+    document.getElementById('pwd').value = '';
+    orderData = [];
   }
 }
 
-// 加载订单
+// ✅ 核心优化1：解析班次数据（按列匹配）
+function parseClassData(carList) {
+  // 定义所有班次映射（和表头一一对应）
+  const classMap = {
+    "4月11日早送": "-",
+    "4月11日晚接": "-",
+    "4月12日早送": "-",
+    "4月12日晚接": "-",
+    "4月11日中午考点更换": "-"
+    "4月12日中午考点更换": "-"
+  };
+
+  // 遍历订单中的班次，填充对应数据
+  carList.forEach(item => {
+    const className = item.name; // 班次名称
+    let content = "-";
+    // 拼接学校/起止信息
+    if(item.school) {
+      content = item.school;
+    } else if(item.from && item.to) {
+      content = `${item.from}→${item.to}`;
+    }
+    // 填充到对应班次列
+    if(classMap.hasOwnProperty(className)) {
+      classMap[className] = content;
+    }
+  });
+
+  return classMap;
+}
+
+// 加载订单（优化班次显示+列宽）
 function load(){
-  fetch(SERVER_URL + `/api/getAllOrders?pwd=${PWD}`)
-  .then(res=>res.json()).then(res=>{
+  // ✅ 修复：拼接URL时编码密码（避免特殊字符问题）
+  const url = `${SERVER_URL}/api/getAllOrders?pwd=${encodeURIComponent(PWD)}`;
+  
+  fetch(url)
+  .then(res=>{
+    // ✅ 新增：检查HTTP状态码
+    if(!res.ok) throw new Error(`接口请求失败：${res.status}`);
+    return res.json();
+  })
+  .then(res=>{
     if(res.code===0){
       orderData = res.data;
-      const html = res.data.map(item=>`
-        <tr>
-          <td>${item.id}</td>
-          <td>${item.userName}</td>
-          <td>${item.total}</td>
-          <td>${item.createTime}</td>
-          <!-- 优化详情显示：包含班次+学校信息 -->
-          <td class="detail-cell">${item.carList.map(i=>`${i.name}（班次：${i.class || '无'}，学校：${i.school || '无'}）`).join('，')}</td>
-          <!-- 新增删除按钮 -->
-          <td><button class="del-btn" onclick="deleteOrder('${item.id}')">删除</button></td>
-        </tr>
-      `).join('');
-      document.getElementById('list').innerHTML = html;
+      let html = '';
+      res.data.forEach(item=>{
+        // 解析班次数据
+        const classData = parseClassData(item.carList || []);
+        // 拼接行HTML
+        html += `
+          <tr data-order-id="${item.id}">
+            <td class="id-col">${item.orderId || item.id || '-'}</td>
+            <td class="name-col">${item.userName || '-'}</td>
+            <td class="money-col">${item.total || 0}</td>
+            <td class="time-col">${item.createTime || '-'}</td>
+            <!-- 班次列（按顺序填充） -->
+            <td class="class-col ${classData['4月11日早送'] === '-' ? 'empty-cell' : ''}">${classData['4月11日早送']}</td>
+            <td class="class-col ${classData['4月11日晚接'] === '-' ? 'empty-cell' : ''}">${classData['4月11日晚接']}</td>
+            <td class="class-col ${classData['4月12日早送'] === '-' ? 'empty-cell' : ''}">${classData['4月12日早送']}</td>
+            <td class="class-col ${classData['4月12日晚接'] === '-' ? 'empty-cell' : ''}">${classData['4月12日晚接']}</td>
+            <td class="class-col ${classData['4月11日中午考点更换'] === '-' ? 'empty-cell' : ''}">${classData['4月11日中午考点更换']}</td>
+            <td class="class-col ${classData['4月12日中午考点更换'] === '-' ? 'empty-cell' : ''}">${classData['4月12日中午考点更换']}</td>
+            <!-- ✅ 修复2：删除按钮传参（字符串加引号+绑定正确ID） -->
+            <td class="oper-col"><button class="del-btn" onclick="deleteOrder('${item.id}')">删除</button></td>
+          </tr>
+        `;
+      });
+      document.getElementById('list').innerHTML = html || '<tr><td colspan="12" style="text-align:center;color:#999">暂无订单数据</td></tr>';
     }else if(res.code===-2){
-      alert('密码错误');
-      location.reload();
+      alert('密码错误，请重新登录');
+      logout();
+    }else{
+      alert(`加载失败：${res.msg || '未知错误'}`);
     }
   }).catch(err=>{
     console.error('加载订单失败：', err);
-    alert('加载订单失败，请检查服务器连接');
+    alert(`加载订单失败：${err.message || '请检查后端服务是否正常'}`);
   });
 }
 
-// 删除订单（新增）
+// ✅ 修复2：删除订单功能（完整错误处理+参数正确）
 function deleteOrder(orderId){
-  if(!confirm(`确定要删除ID为 ${orderId} 的订单吗？此操作不可恢复！`)){
+  if(!orderId || !confirm(`确定要删除订单【${orderId}】吗？此操作不可恢复！`)){
     return;
   }
 
-  // 发送删除请求到服务器
-  fetch(`${SERVER_URL}/api/deleteOrder?pwd=${PWD}`, {
-    method: 'POST', // 建议用POST，也可根据后端接口调整为DELETE
+  fetch(`${SERVER_URL}/api/deleteOrder`, {
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ id: orderId })
+    body: JSON.stringify({ 
+      pwd: PWD,
+      id: orderId // 确保传的是后端识别的ID（数字/字符串匹配）
+    })
   })
-  .then(res=>res.json())
+  .then(res=>{
+    if(!res.ok) throw new Error(`删除请求失败：${res.status}`);
+    return res.json();
+  })
   .then(res=>{
     if(res.code===0){
       alert('删除成功！');
-      load(); // 重新加载订单列表
+      load(); // 重新加载列表
+    }else if(res.code===-2){
+      alert('密码错误，删除失败');
+      logout();
     }else{
-      alert(`删除失败：${res.msg || '未知错误'}`);
+      alert(`删除失败：${res.msg || '订单不存在'}`);
     }
   })
   .catch(err=>{
     console.error('删除订单失败：', err);
-    alert('删除订单失败，请检查服务器连接');
+    alert(`删除失败：${err.message || '请检查后端接口是否正常'}`);
   });
 }
 
-// 导出 Excel（优化详情导出）
+// 导出Excel（适配新的列结构）
 function exportExcel(){
-  const data = [['ID','姓名','总金额','提交时间','详情','操作']];
+  if(orderData.length === 0){
+    alert('暂无订单数据可导出');
+    return;
+  }
+  // 表头（和页面一致）
+  const header = [
+    '订单ID', '姓名', '金额(元)', '提交时间',
+    '4月11日早送', '4月11日晚接', '4月12日早送',
+    '4月12日晚接', '4月11日中午考点更换'
+    '4月12日中午考点更换', '操作'
+  ];
+  const data = [header];
+  
+  // 填充数据
   orderData.forEach(item=>{
+    const classData = parseClassData(item.carList || []);
     data.push([
-      item.id,
-      item.userName,
-      item.total,
-      item.createTime,
-      // 导出时也包含班次和学校信息
-      item.carList.map(i=>`${i.name}（班次：${i.class || '无'}，学校：${i.school || '无'}）`).join(' | '),
-      '删除操作' // Excel中标记操作列含义
+      item.orderId || item.id || '-',
+      item.userName || '-',
+      item.total || 0,
+      item.createTime || '-',
+      classData['4月11日早送'],
+      classData['4月11日晚接'],
+      classData['4月12日早送'],
+      classData['4月12日晚接'],
+      classData['4月11日中午考点更换'],
+      classData['4月12日中午考点更换'],
+      '已删除/正常' // 操作列备注
     ]);
   });
+  
   const ws = XLSX.utils.aoa_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "订单");
-  XLSX.writeFile(wb, "订单列表.xlsx");
+  XLSX.utils.book_append_sheet(wb, ws, "订单列表");
+  XLSX.writeFile(wb, `订单列表_${new Date().toLocaleDateString()}.xlsx`);
 }
 </script>
 </body>

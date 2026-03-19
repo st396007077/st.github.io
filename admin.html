@@ -104,27 +104,58 @@ border-radius:4px;cursor:pointer;border:1px solid #ddd;
 .row-modify { background-color:#fff2f0 !important }
 .row-multi-submit { background-color:#e6f7ff !important }
 .row-first-submit { background-color:#fff !important }
+
+/* ===================================== */
+/* ✅ 全局弹窗优化：更大、更好看、更适配 */
+/* ===================================== */
 .modal {
 position:fixed;top:0;left:0;width:100%;height:100%;
-background:rgba(0,0,0,0.7);display:none;
+background:rgba(0,0,0,0.85);display:none;
 justify-content:center;align-items:center;z-index:9999;
+padding: 15px;
 }
 .modal-content {
-background:white;padding:20px;border-radius:8px;
-max-width:90vw;text-align:center;position:relative;
+background:white;padding:30px;border-radius:12px;
+width: 100%;max-width:900px; /* 最大宽度放大 */
+text-align:center;position:relative;
+max-height: 95vh;
+overflow-y: auto;
 }
-.modal-img { max-width:90vw;max-height:80vh;object-fit:contain; }
+.modal-img {
+max-width:100%;max-height:85vh;
+object-fit:contain;border-radius:8px;
+}
 .modal-close {
-position:absolute;top:10px;right:15px;
-font-size:24px;cursor:pointer;color:#fff;
+position:fixed;top:20px;right:25px;
+font-size:36px;color:#fff;
+cursor:pointer;background:none;border:none;
+z-index:10000;
 }
 .modal-download {
-margin-top:10px;padding:8px 16px;
-background:#28a745;color:white;border:none;border-radius:5px;cursor:pointer;
+margin-top:15px;padding:12px 24px;
+background:#28a745;color:white;
+border:none;border-radius:8px;
+font-size:16px;cursor:pointer;
 }
 .modal-btn {
-margin-top:15px;padding:8px 20px;
-background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer;
+margin-top:20px;padding:14px 30px;
+background:#007bff;color:white;
+border:none;border-radius:8px;
+font-size:16px;cursor:pointer;
+}
+#resultModal .modal-content {
+max-width: 550px !important;  /* 提示弹窗放大 */
+padding: 40px 30px !important;
+}
+#modalTitle {
+font-size: 20px;
+margin-bottom: 10px;
+}
+#modalMsg {
+font-size: 15px;
+line-height: 1.7;
+margin: 10px 0 20px !important;
+white-space: pre-line;
 }
 </style>
 </head>
@@ -191,7 +222,7 @@ background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer;
 
 <div class="modal" id="imgModal">
 <div class="modal-content">
-<span class="modal-close" onclick="closeImgModal()">&times;</span>
+<button class="modal-close" onclick="closeImgModal()">&times;</button>
 <img class="modal-img" id="previewImg" src="">
 <button class="modal-download" id="downloadBtn">下载图片</button>
 </div>
@@ -250,9 +281,6 @@ function closeImgModal() {
   document.getElementById('imgModal').style.display = 'none';
 }
 
-// ==========================
-// ✅ 最终优化：同订单追加 → 自动变蓝
-// ==========================
 function renderTable() {
   const list = document.getElementById('list');
   list.innerHTML = '';
@@ -264,11 +292,10 @@ function renderTable() {
   filteredOrderData.forEach(order => {
     const tr = document.createElement('tr');
 
-    // 优先级：手动修改(红) > 多次提交/追加(蓝) > 首次(白)
     if (order.isManuallyModified) {
       tr.className = 'row-modify';
     } else if (order.isMultiSubmit) {
-      tr.className = 'row-multi-submit'; // ✅ 追加自动变蓝
+      tr.className = 'row-multi-submit';
     } else {
       tr.className = 'row-first-submit';
     }
@@ -299,7 +326,7 @@ function renderTable() {
     tr.innerHTML = `
       <td>${order.orderId || '-'}</td>
       <td>${order.userName || '-'}</td>
-      <td>${order.userPhone || '-'}</td>
+      <td>${userPhoneFormat(order.userPhone) || '-'}</td>
       <td>${order.payType || '-'}</td>
       <td class="pay-record">${formatPaymentRecords()}</td>
       <td>${renderScreenshots()}</td>
@@ -318,6 +345,14 @@ function renderTable() {
     `;
     list.appendChild(tr);
   });
+}
+
+function userPhoneFormat(phone){
+  if(!phone) return '-';
+  if(phone.length === 11){
+    return phone.substring(0,3) + '****' + phone.substring(7);
+  }
+  return phone;
 }
 
 async function refreshAmount(orderId) {

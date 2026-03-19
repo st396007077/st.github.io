@@ -32,6 +32,7 @@
             cursor: pointer;
             font-size: 13px;
             z-index: 9999;
+            white-space: nowrap;
         }
         .query-btn:hover {
             background: #218838;
@@ -164,12 +165,26 @@
             max-height: 90vh;
             overflow-y: auto;
             text-align: center;
+            position: relative;
+        }
+
+        .modal-close-btn {
+            position: absolute;
+            right: 15px;
+            top: 10px;
+            font-size: 26px;
+            color: red;
+            cursor: pointer;
+            font-weight: bold;
+            line-height: 1;
+            z-index: 10;
         }
 
         .modal-btns {
             display: flex;
             gap: 12px;
             margin-top: 18px;
+            flex-wrap: nowrap !important;
         }
 
         .modal-btns button {
@@ -179,6 +194,8 @@
             border-radius: 6px;
             cursor: pointer;
             font-size: 15px;
+            white-space: nowrap;
+            min-width: 100px;
         }
 
         .wechat-btn {
@@ -195,7 +212,7 @@
             max-width: 280px;
             width: 100%;
             height: auto;
-            margin: 15px auto;
+            margin: 15 auto;
             display: block;
             object-fit: contain;
         }
@@ -215,6 +232,7 @@
             border: none;
             border-radius: 6px;
             cursor: pointer;
+            white-space: nowrap;
         }
 
         .query-input {
@@ -258,6 +276,7 @@
             border-radius: 6px;
             font-size: 15px;
             cursor: pointer;
+            white-space: nowrap;
         }
         .confirm-submit-btn {
             background: #28a745;
@@ -323,11 +342,42 @@
             object-fit: contain;
         }
 
-        @media (max-width: 400px) {
-            .modal-btns {
-                flex-direction: column;
-                gap: 8px;
-            }
+        /* 自定义alert弹窗样式 */
+        .custom-alert {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999999;
+            padding: 20px;
+        }
+        .alert-content {
+            background: white;
+            padding: 25px 20px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 320px;
+            text-align: center;
+        }
+        .alert-text {
+            font-size: 16px;
+            margin-bottom: 20px;
+            color: #333;
+            line-height: 1.6;
+        }
+        .alert-btn {
+            padding: 10px 30px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
         }
     </style>
 </head>
@@ -348,13 +398,13 @@
 
     <div class="form-item">
         <label>乘车人姓名 <span style="color:red">*</span></label>
-        <input type="text" id="userName" placeholder="请输入2-5个汉字的真实姓名" oninput="loadUserHistory()">
+        <input type="text" id="userName" placeholder="请输入2-5个汉字的真实姓名" oninput="checkNameInput();loadUserHistory()">
         <div class="error-tip" id="nameError">请输入2-5个有效的汉字姓名</div>
     </div>
 
     <div class="form-item">
         <label>联系电话 <span style="color:red">*</span></label>
-        <input type="tel" id="userPhone" placeholder="请输入您的手机号码" maxlength="11" oninput="loadUserHistory()">
+        <input type="tel" id="userPhone" placeholder="请输入您的手机号码" maxlength="11" oninput="checkPhoneInput();loadUserHistory()">
         <div class="error-tip" id="phoneError">请输入有效的11位手机号码</div>
     </div>
 
@@ -504,6 +554,7 @@
 <!-- 支付方式弹窗 -->
 <div class="modal" id="payModal">
     <div class="modal-content">
+        <div class="modal-close-btn" onclick="closePayModal()">&times;</div>
         <h3>请选择支付方式</h3>
         <p style="color:red; font-weight:bold; margin:10px 0;">【优先推荐使用支付宝支付，微信可能出现无法支付问题】</p>
         <div class="modal-btns">
@@ -586,28 +637,64 @@
     let selectedPayType = '';
     let existedCarNames = [];
     let hasUploadedScreenshot = false;
-    let screenshotFiles = []; // 已选择的所有图片
+    let screenshotFiles = [];
 
     const FIXED_CAR_ORDER = [
         '4月11日早送','4月11日晚接','4月12日早送','4月12日晚接',
         '4月11日中午考点更换','4月12日中午考点更换'
     ];
 
-    // 图片预览 —— 修复：追加模式，不覆盖
+    // 关闭支付方式弹窗
+    function closePayModal() {
+        document.getElementById('payModal').style.display = 'none';
+    }
+
+    // 自定义弹窗函数
+    function showAlert(message) {
+        const oldAlert = document.querySelector('.custom-alert');
+        if(oldAlert) oldAlert.remove();
+        
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'custom-alert';
+        alertDiv.innerHTML = `
+            <div class="alert-content">
+                <div class="alert-text">${message}</div>
+                <button class="alert-btn" onclick="this.closest('.custom-alert').remove()">确定</button>
+            </div>
+        `;
+        document.body.appendChild(alertDiv);
+    }
+
+    // 实时校验姓名输入
+    function checkNameInput() {
+        const name = document.getElementById('userName').value.trim();
+        const nameError = document.getElementById('nameError');
+        if(validateName(name)) {
+            nameError.style.display = 'none';
+        }
+    }
+
+    // 实时校验手机号输入
+    function checkPhoneInput() {
+        const phone = document.getElementById('userPhone').value.trim();
+        const phoneError = document.getElementById('phoneError');
+        if(validatePhone(phone)) {
+            phoneError.style.display = 'none';
+        }
+    }
+
+    // 图片预览
     function previewScreenshot() {
         const fileInput = document.getElementById('screenshotInput');
         const previewContainer = document.getElementById('previewContainer');
         const newFiles = Array.from(fileInput.files);
 
         if (newFiles.length > 0) {
-            // 追加图片，不替换
             screenshotFiles = [...screenshotFiles, ...newFiles];
             hasUploadedScreenshot = true;
         }
 
-        // 重新渲染所有图片
         renderAllPreviews();
-        // 清空 input，允许再次选择相同/不同图片
         fileInput.value = '';
     }
 
@@ -683,7 +770,7 @@
     document.querySelectorAll('.car-check').forEach(i => {
         i.addEventListener('change', function(){
             const n = this.dataset.name;
-            if(existedCarNames.includes(n)) { this.checked=false; alert('已提交过'); return; }
+            if(existedCarNames.includes(n)) { this.checked=false; showAlert('该班次已提交过，无法重复选择'); return; }
             const t = this.dataset.type;
             document.getElementById(`school${t}`).style.display = this.checked ? 'block' : 'none';
             document.getElementById(`error${t}`).style.display = 'none';
@@ -729,14 +816,28 @@
         const name = document.getElementById('userName').value.trim();
         const phone = document.getElementById('userPhone').value.trim();
         const total = calcTotal();
-        if(!name || !validateName(name)) { document.getElementById('nameError').style.display='block'; return; }
-        if(!phone || !validatePhone(phone)) { document.getElementById('phoneError').style.display='block'; return; }
-        if(total <=0) { alert('请选车次'); return; }
-        if(!checkSchoolSelected()) { alert('请选学校'); return; }
+        
+        // 姓名验证
+        if(!name || !validateName(name)) { 
+            document.getElementById('nameError').style.display='block'; 
+            showAlert('乘车人姓名必须是2-5个汉字！');
+            return; 
+        }
+        
+        // 电话验证
+        if(!phone || !validatePhone(phone)) { 
+            document.getElementById('phoneError').style.display='block';
+            showAlert('请输入有效的11位手机号码！');
+            return; 
+        }
+        
+        if(total <=0) { showAlert('请选择乘坐车次'); return; }
+        if(!checkSchoolSelected()) { showAlert('请选择完整的学校信息'); return; }
+        
         document.getElementById('payModal').style.display='flex';
     }
 
-    function closeQRModal(){ document.getElementById('qrModal').style.display='none'; }
+    function closeQRModal(){ document.getElementById('qrModal').style.display = 'none'; }
 
     function showQR(type){
         const total = calcTotal();
@@ -772,10 +873,10 @@
         document.getElementById('qrModal').style.display = 'flex';
     }
 
-// 提交订单 + 上传截图（修复版）
+// 提交订单 + 上传截图
 async function submitOrderWithScreenshot(){
     if (!hasUploadedScreenshot) {
-        alert('请上传支付截图后再确认提交');
+        showAlert('请上传支付截图后再确认提交');
         return;
     }
 
@@ -797,7 +898,7 @@ async function submitOrderWithScreenshot(){
             carList.push(info);
         });
 
-        // 步骤1：提交订单（先获取orderId）
+        // 提交订单
         const orderRes = await fetch(SERVER_URL + "/api/submitOrder", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -805,11 +906,11 @@ async function submitOrderWithScreenshot(){
         });
         const orderData = await orderRes.json();
         if(orderData.code !==0) { 
-            alert("提交失败："+orderData.msg); 
+            showAlert("提交失败："+orderData.msg); 
             return; 
         }
 
-        // 步骤2：上传所有图片（增加返回值校验）
+        // 上传截图
         const formData = new FormData();
         formData.append('orderId', orderData.orderId);
         screenshotFiles.forEach(f => formData.append('screenshots', f));
@@ -818,27 +919,25 @@ async function submitOrderWithScreenshot(){
             method: "POST",
             body: formData
         });
-        const uploadData = await uploadRes.json(); // 要求后端返回JSON格式结果
+        const uploadData = await uploadRes.json();
         
-        // 校验上传是否成功
         if(uploadData.code !== 0) {
-            alert("截图上传失败：" + uploadData.msg);
-            // 可选：删除已提交的空订单（需后端配合接口）
+            showAlert("截图上传失败：" + uploadData.msg);
             await fetch(`${SERVER_URL}/api/deleteOrder?orderId=${orderData.orderId}`, { method: "DELETE" });
             return;
         }
 
-        // 步骤3：（可选）更新订单的截图路径（若后端需要二次关联）
+        // 更新订单截图
         await fetch(SERVER_URL + "/api/updateOrderScreenshots", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
                 orderId: orderData.orderId,
-                screenshots: uploadData.screenshotUrls // 后端返回的截图路径列表
+                screenshots: uploadData.screenshotUrls
             })
         });
 
-        // 提交成功提示
+        // 成功提示
         document.getElementById('screenshotModal').style.display = 'none';
         let info = `
             <strong>乘车人：</strong>${name}<br>
@@ -861,8 +960,8 @@ async function submitOrderWithScreenshot(){
         document.getElementById('successModal').style.display = 'flex';
         loadUserHistory();
     } catch (e) {
-        console.error("提交失败详情：", e); // 控制台打印错误，方便调试
-        alert("提交失败：网络异常/文件上传失败，请检查截图格式或重试");
+        console.error("提交失败详情：", e);
+        showAlert("提交失败：网络异常/文件上传失败，请检查截图格式或重试");
     }
 }
 
@@ -879,13 +978,13 @@ async function submitOrderWithScreenshot(){
     function searchPayInfo(){
         const n = document.getElementById('queryName').value.trim();
         const p = document.getElementById('queryPhone').value.trim();
-        if(!n || !p || !validatePhone(p)) { alert('请输入正确信息'); return; }
+        if(!n || !p || !validatePhone(p)) { showAlert('请输入正确的姓名和手机号码'); return; }
         fetch(`${SERVER_URL}/api/queryOrder?userName=${encodeURIComponent(n)}`)
         .then(r=>r.json())
         .then(d=>{
             if(d.code!==0) return;
             const list = d.data.filter(i=>i.userPhone === p);
-            if(list.length ===0) { document.getElementById('queryResult').innerHTML='<span style="color:red">未找到</span>'; return; }
+            if(list.length ===0) { document.getElementById('queryResult').innerHTML='<span style="color:red">未找到相关交费信息</span>'; return; }
             let html = '';
             list.forEach((item,idx)=>{
                 html += `<div style="border-bottom:1px solid #eee;padding:10px 0">`;

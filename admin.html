@@ -91,7 +91,7 @@ th{background:#f8f9fa}
 .pay-record-col{width:250px;}
 .pay-screenshot-col{width:220px;}
 .money-col{width:80px}
-.oper-col{width:140px;}
+.oper-col{width:140px}
 .class-col{width:120px}
 .pay-record {
 white-space:pre-line;text-align:left;padding:5px;line-height:1.4;
@@ -105,21 +105,18 @@ border-radius:4px;cursor:pointer;border:1px solid #ddd;
 .row-multi-submit { background-color:#e6f7ff !important }
 .row-first-submit { background-color:#fff !important }
 
-/* ===================================== */
-/* ✅ 全局弹窗优化：更大、更好看、更适配 */
-/* ===================================== */
+/* 弹窗优化（大弹窗） */
 .modal {
 position:fixed;top:0;left:0;width:100%;height:100%;
 background:rgba(0,0,0,0.85);display:none;
 justify-content:center;align-items:center;z-index:9999;
-padding: 15px;
+padding:15px;
 }
 .modal-content {
 background:white;padding:30px;border-radius:12px;
-width: 100%;max-width:900px; /* 最大宽度放大 */
+width:100%;max-width:900px;
 text-align:center;position:relative;
-max-height: 95vh;
-overflow-y: auto;
+max-height:95vh;overflow-y:auto;
 }
 .modal-img {
 max-width:100%;max-height:85vh;
@@ -144,19 +141,10 @@ border:none;border-radius:8px;
 font-size:16px;cursor:pointer;
 }
 #resultModal .modal-content {
-max-width: 550px !important;  /* 提示弹窗放大 */
-padding: 40px 30px !important;
+max-width:550px;padding:40px 30px;
 }
-#modalTitle {
-font-size: 20px;
-margin-bottom: 10px;
-}
-#modalMsg {
-font-size: 15px;
-line-height: 1.7;
-margin: 10px 0 20px !important;
-white-space: pre-line;
-}
+#modalTitle {font-size:20px;margin-bottom:10px}
+#modalMsg {font-size:15px;line-height:1.7;margin:10px 0 20px}
 </style>
 </head>
 
@@ -175,8 +163,7 @@ white-space: pre-line;
 <span class="color-tag tag-red"></span>红色：手动修改
 </div>
 <div class="db-modify-desc">
-1. 数据库修改班次后已自动识别标红<br>
-2. 首次提交白色，追加/多次提交蓝色，手动修改红色
+1. 数据库修改班次后已自动识别标红<br>2. 首次提交白色，追加/多次提交蓝色
 </div>
 
 <div class="search-tools">
@@ -231,7 +218,7 @@ white-space: pre-line;
 <div class="modal" id="resultModal">
 <div class="modal-content">
 <h3 id="modalTitle">操作结果</h3>
-<p id="modalMsg" style="margin:15px 0;line-height:1.6;"></p>
+<p id="modalMsg"></p>
 <button class="modal-btn" onclick="closeModal()">确定</button>
 </div>
 </div>
@@ -239,33 +226,44 @@ white-space: pre-line;
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script>
 const SERVER_URL = "https://zikaocar-server.onrender.com";
-const PWD = "sutong5560";
+let ADMIN_PWD = ""; // 密码不再明文写死！
 let orderData = [], filteredOrderData = [];
 
 function login(){
   const val = document.getElementById('pwd').value;
-  if(val !== PWD){ alert('密码错误'); return; }
-  document.getElementById('loginBox').style.display = 'none';
-  document.getElementById('adminBox').style.display = 'block';
-  load();
+  if(!val){ alert('请输入密码'); return; }
+  ADMIN_PWD = val;
+  checkLogin();
 }
+
+async function checkLogin(){
+  try {
+    const res = await fetch(`${SERVER_URL}/api/getAllOrders?pwd=${ADMIN_PWD}`);
+    const d = await res.json();
+    if(d.code !== 0){ alert('密码错误'); return; }
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('adminBox').style.display = 'block';
+    load();
+  }catch(e){ alert('登录失败'); }
+}
+
 function logout(){
-  if(confirm('确定退出？')){
-    document.getElementById('loginBox').style.display = 'block';
-    document.getElementById('adminBox').style.display = 'none';
+  if(confirm('退出？')){
+    ADMIN_PWD = "";
+    location.reload();
   }
 }
 
 async function load() {
   try {
-    const res = await fetch(`${SERVER_URL}/api/getAllOrders?pwd=${PWD}`);
+    const res = await fetch(`${SERVER_URL}/api/getAllOrders?pwd=${ADMIN_PWD}`);
     const data = await res.json();
-    if(data.code !== 0) { showModal('提示', data.msg); return; }
+    if(data.code !==0) { showModal('无权限','请重新登录'); logout(); return; }
     orderData = data.data;
     filteredOrderData = [...orderData];
     renderTable();
   } catch (err) {
-    showModal('错误', '加载失败：'+err.message);
+    showModal('错误','加载失败');
   }
 }
 
@@ -274,7 +272,7 @@ function openImage(url) {
   document.getElementById('imgModal').style.display = 'flex';
   document.getElementById('downloadBtn').onclick = () => {
     const a = document.createElement('a');
-    a.href = url; a.download = '支付截图'; a.click();
+    a.href = url; a.download = '截图'; a.click();
   };
 }
 function closeImgModal() {
@@ -288,17 +286,11 @@ function renderTable() {
     list.innerHTML = '<tr><td colspan="15">暂无数据</td></tr>';
     return;
   }
-
   filteredOrderData.forEach(order => {
     const tr = document.createElement('tr');
-
-    if (order.isManuallyModified) {
-      tr.className = 'row-modify';
-    } else if (order.isMultiSubmit) {
-      tr.className = 'row-multi-submit';
-    } else {
-      tr.className = 'row-first-submit';
-    }
+    if (order.isManuallyModified) tr.className = 'row-modify';
+    else if (order.isMultiSubmit) tr.className = 'row-multi-submit';
+    else tr.className = 'row-first-submit';
 
     const getClassInfo = (name) => {
       const item = order.carList.find(i => i.name === name);
@@ -310,23 +302,19 @@ function renderTable() {
 
     const formatPaymentRecords = () => {
       if(!order.paymentRecords?.length) return '-';
-      return order.paymentRecords.map((r,i)=>
-        `第${i+1}笔：${r.payType} ${r.amount}元 ${r.time}`
-      ).join('\n');
+      return order.paymentRecords.map((r,i)=>`第${i+1}笔：${r.payType} ${r.amount}元 ${r.time}`).join('\n');
     };
 
     const renderScreenshots = () => {
       const arr = order.payScreenshots || [];
       if(!arr.length) return '<span style="color:#999">无截图</span>';
-      return `<div class="pay-img-list">
-        ${arr.map(u=>`<img src="${u}" class="pay-img-item" onclick="openImage('${u}')">`).join('')}
-      </div>`;
+      return `<div class="pay-img-list">${arr.map(u=>`<img src="${u}" class="pay-img-item" onclick="openImage('${u}')">`).join('')}</div>`;
     };
 
     tr.innerHTML = `
       <td>${order.orderId || '-'}</td>
       <td>${order.userName || '-'}</td>
-      <td>${userPhoneFormat(order.userPhone) || '-'}</td>
+      <td>${order.userPhone ? order.userPhone.replace(/(\d{3})\d{4}(\d{4})/,'$1****$2') : '-'}</td>
       <td>${order.payType || '-'}</td>
       <td class="pay-record">${formatPaymentRecords()}</td>
       <td>${renderScreenshots()}</td>
@@ -347,37 +335,30 @@ function renderTable() {
   });
 }
 
-function userPhoneFormat(phone){
-  if(!phone) return '-';
-  if(phone.length === 11){
-    return phone.substring(0,3) + '****' + phone.substring(7);
-  }
-  return phone;
-}
-
 async function refreshAmount(orderId) {
-  if(!confirm('确定刷新金额？')) return;
+  if(!confirm('确定刷新？')) return;
   try {
-    const res = await fetch(`${SERVER_URL}/api/recalculateAmount`,{
+    const r = await fetch(`${SERVER_URL}/api/recalculateAmount`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ pwd:PWD, orderId })
+      body:JSON.stringify({ pwd:ADMIN_PWD, orderId })
     });
-    const data = await res.json();
-    showModal(data.code===0?'成功':'失败', data.msg);
-  } catch(e){ showModal('错误','失败：'+e.message); }
+    const d = await r.json();
+    showModal('结果',d.msg);
+    if(d.code===0) load();
+  }catch(e){ showModal('错误','失败'); }
 }
 
 async function deleteOrder(id) {
   if(!confirm('确定删除？')) return;
   try {
-    const res = await fetch(`${SERVER_URL}/api/deleteOrder`,{
+    const r = await fetch(`${SERVER_URL}/api/deleteOrder`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ pwd:PWD, id })
+      body:JSON.stringify({ pwd:ADMIN_PWD, id })
     });
-    const data = await res.json();
-    showModal(data.code===0?'成功':'失败', data.msg);
-    load();
-  } catch(e){ showModal('错误','失败：'+e.message); }
+    const d = await r.json();
+    showModal('结果',d.msg);
+    if(d.code===0) load();
+  }catch(e){ showModal('错误','失败'); }
 }
 
 function searchOrders() {
@@ -397,7 +378,7 @@ function resetSearch() {
 }
 
 function exportExcel() {
-  if(!filteredOrderData.length) { showModal('提示','暂无数据可导出'); return; }
+  if(!filteredOrderData.length) { showModal('提示','暂无数据'); return; }
   const excelData = filteredOrderData.map(o => {
     const getInfo = (n) => {
       const i = o.carList.find(x => x.name === n);
@@ -406,34 +387,28 @@ function exportExcel() {
       if(i.from && i.to) return i.from+'→'+i.to;
       return '-';
     };
-    const payRecords = o.paymentRecords?.length
-      ? o.paymentRecords.map((r,i)=>`第${i+1}笔：${r.payType} ${r.amount}元 ${r.time}`).join('；')
-      : '-';
-    const screenshots = o.payScreenshots?.length ? o.payScreenshots.join('\n') : '无截图';
+    const payRecords = o.paymentRecords?.length ? o.paymentRecords.map((r,i)=>`第${i+1}笔：${r.payType} ${r.amount}元`).join('；') : '-';
     return {
-      '订单ID':o.orderId||'-','姓名':o.userName||'-','电话':o.userPhone||'-',
-      '支付方式':o.payType||'-','支付记录':payRecords,'付款信息截图链接':screenshots,
-      '总金额':(o.total||0)+'元','最后提交时间':o.createTime||'-',
-      '4月11日早送':getInfo('4月11日早送'),'4月11日晚接':getInfo('4月11日晚接'),
-      '4月12日早送':getInfo('4月12日早送'),'4月12日晚接':getInfo('4月12日晚接'),
-      '4月11日中午':getInfo('4月11日中午考点更换'),'4月12日中午':getInfo('4月12日中午考点更换')
+      '订单ID':o.orderId,'姓名':o.userName,'电话':o.userPhone,'支付方式':o.payType,
+      '支付记录':payRecords,'总金额':o.total+'元','提交时间':o.createTime,
+      '4月11日早送':getInfo('4月11日早送'),'4月11日晚送':getInfo('4月11日晚送'),
+      '4月12日早送':getInfo('4月12日早送'),'4月12日晚送':getInfo('4月12日晚送')
     };
   });
   const ws = XLSX.utils.json_to_sheet(excelData);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'订单列表');
-  XLSX.writeFile(wb,`订单列表_${new Date().toLocaleDateString()}.xlsx`);
-  showModal('成功','导出成功！');
+  XLSX.utils.book_append_sheet(wb,ws,'订单');
+  XLSX.writeFile(wb,`订单_${new Date().toLocaleDateString()}.xlsx`);
+  showModal('成功','导出完成');
 }
 
 function showModal(t,m){
-  document.getElementById('modalTitle').innerText=t;
-  document.getElementById('modalMsg').innerText=m;
-  document.getElementById('resultModal').style.display='flex';
+  document.getElementById('modalTitle').innerText = t;
+  document.getElementById('modalMsg').innerText = m;
+  document.getElementById('resultModal').style.display = 'flex';
 }
 function closeModal(){
-  document.getElementById('resultModal').style.display='none';
-  load();
+  document.getElementById('resultModal').style.display = 'none';
 }
 </script>
 </body>

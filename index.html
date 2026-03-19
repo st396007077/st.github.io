@@ -586,62 +586,66 @@
     let selectedPayType = '';
     let existedCarNames = [];
     let hasUploadedScreenshot = false;
-    let screenshotFiles = [];
+    let screenshotFiles = []; // 已选择的所有图片
 
     const FIXED_CAR_ORDER = [
         '4月11日早送','4月11日晚接','4月12日早送','4月12日晚接',
         '4月11日中午考点更换','4月12日中午考点更换'
     ];
 
-    // 图片预览
+    // 图片预览 —— 修复：追加模式，不覆盖
     function previewScreenshot() {
         const fileInput = document.getElementById('screenshotInput');
         const previewContainer = document.getElementById('previewContainer');
-        const files = fileInput.files;
+        const newFiles = Array.from(fileInput.files);
 
-        if (files.length > 0) {
+        if (newFiles.length > 0) {
+            // 追加图片，不替换
+            screenshotFiles = [...screenshotFiles, ...newFiles];
             hasUploadedScreenshot = true;
-            screenshotFiles = Array.from(files);
-            previewContainer.innerHTML = '';
-
-            screenshotFiles.forEach((file, index) => {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'preview-img-wrapper';
-                    
-                    const img = document.createElement('img');
-                    img.src = e.target.result;
-                    img.className = 'preview-img';
-                    img.onclick = () => openImgZoom(e.target.result);
-                    
-                    const delBtn = document.createElement('div');
-                    delBtn.className = 'del-img-btn';
-                    delBtn.innerText = '×';
-                    delBtn.onclick = () => deleteScreenshot(index);
-                    
-                    wrapper.appendChild(img);
-                    wrapper.appendChild(delBtn);
-                    previewContainer.appendChild(wrapper);
-                };
-                reader.readAsDataURL(file);
-            });
-        } else {
-            hasUploadedScreenshot = false;
-            screenshotFiles = [];
-            previewContainer.innerHTML = '';
         }
+
+        // 重新渲染所有图片
+        renderAllPreviews();
+        // 清空 input，允许再次选择相同/不同图片
+        fileInput.value = '';
+    }
+
+    // 渲染所有预览图
+    function renderAllPreviews() {
+        const previewContainer = document.getElementById('previewContainer');
+        previewContainer.innerHTML = '';
+
+        screenshotFiles.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'preview-img-wrapper';
+
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.className = 'preview-img';
+                img.onclick = () => openImgZoom(e.target.result);
+
+                const delBtn = document.createElement('div');
+                delBtn.className = 'del-img-btn';
+                delBtn.innerText = '×';
+                delBtn.onclick = () => deleteScreenshot(index);
+
+                wrapper.appendChild(img);
+                wrapper.appendChild(delBtn);
+                previewContainer.appendChild(wrapper);
+            };
+            reader.readAsDataURL(file);
+        });
     }
 
     // 删除图片
     function deleteScreenshot(index) {
-        if (!confirm('确定删除？')) return;
+        if (!confirm('确定要删除这张图片吗？')) return;
         screenshotFiles.splice(index, 1);
-        const dt = new DataTransfer();
-        screenshotFiles.forEach(f => dt.items.add(f));
-        document.getElementById('screenshotInput').files = dt.files;
         hasUploadedScreenshot = screenshotFiles.length > 0;
-        previewScreenshot();
+        renderAllPreviews();
     }
 
     // 放大图片
@@ -663,7 +667,7 @@
             const data = await res.json();
             existedCarNames = [];
             if(data.code ===0 && data.data.length>0) {
-                const u = data.data.find(i=>i.userPhone === phone);
+                const u = data.data.find(item=>item.userPhone === phone);
                 if(u) existedCarNames = u.carList.map(i=>i.name);
             }
             document.querySelectorAll('.car-check').forEach(box => {
@@ -768,7 +772,7 @@
         document.getElementById('qrModal').style.display = 'flex';
     }
 
-    // ========= 核心：提交订单 + 上传截图 =========
+    // 提交订单 + 上传截图
     async function submitOrderWithScreenshot(){
         if (!hasUploadedScreenshot) {
             alert('请上传支付截图后再确认提交');
@@ -776,7 +780,6 @@
         }
 
         try {
-            // 1. 提交订单
             const name = document.getElementById('userName').value.trim();
             const phone = document.getElementById('userPhone').value.trim();
             const total = calcTotal();
@@ -794,6 +797,7 @@
                 carList.push(info);
             });
 
+            // 提交订单
             const orderRes = await fetch(SERVER_URL + "/api/submitOrder", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -802,7 +806,7 @@
             const orderData = await orderRes.json();
             if(orderData.code !==0) { alert("提交失败："+orderData.msg); return; }
 
-            // 2. 上传截图
+            // 上传所有图片
             const formData = new FormData();
             formData.append('orderId', orderData.orderId);
             screenshotFiles.forEach(f => formData.append('screenshots', f));
@@ -812,7 +816,6 @@
                 body: formData
             });
 
-            // 3. 成功
             document.getElementById('screenshotModal').style.display = 'none';
             let info = `
                 <strong>乘车人：</strong>${name}<br>

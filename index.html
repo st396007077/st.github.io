@@ -695,9 +695,19 @@ function loadFormData() {
     }
 
     calcTotal();
+    saveFormData();
+
+    // ==============================================
+    // ✅ 核心优化：页面加载时自动查询已购班次
+    // ==============================================
+    const name = data.userName || '';
+    const phone = data.userPhone || '';
+    if (name && phone && validateName(name) && validatePhone(phone)) {
+        // 直接自动加载历史，禁用已购班次
+        loadUserHistory();
+    }
 
     setTimeout(() => {
-        // 先关闭所有弹窗
         document.getElementById('payModal').style.display = 'none';
         document.getElementById('qrModal').style.display = 'none';
         document.getElementById('screenshotModal').style.display = 'none';
@@ -707,7 +717,6 @@ function loadFormData() {
         }
         if (data.openModal === 'qrModal') {
             document.getElementById('payModal').style.display = 'none';
-            // ✅ 修复：重新加载二维码图片
             const total = calcTotal();
             const m = document.getElementById('qrModal');
             const title = document.getElementById('qrTitle');

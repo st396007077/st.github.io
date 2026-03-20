@@ -413,7 +413,7 @@ font-size: 15px;
 
 <div class="car-item">
 <div class="car-item-header">
-<input type="checkbox" class="car-check" value="20" data-type="1" data-name="4月11日早送" onchange="onCarChange()">
+<input type="checkbox" class="car-check" value="20" data-type="1" data-name="4月11日早送" onchange="checkSchoolError(this); saveFormData()">
 <span>4月11日早送（20元）</span>
 </div>
 <div class="school-select" id="school1">
@@ -432,7 +432,7 @@ font-size: 15px;
 
 <div class="car-item">
 <div class="car-item-header">
-<input type="checkbox" class="car-check" value="20" data-type="2" data-name="4月11日晚接" onchange="onCarChange()">
+<input type="checkbox" class="car-check" value="20" data-type="2" data-name="4月11日晚接" onchange="checkSchoolError(this); saveFormData()">
 <span>4月11日晚接（20元）</span>
 </div>
 <div class="school-select" id="school2">
@@ -451,7 +451,7 @@ font-size: 15px;
 
 <div class="car-item">
 <div class="car-item-header">
-<input type="checkbox" class="car-check" value="20" data-type="3" data-name="4月12日早送" onchange="onCarChange()">
+<input type="checkbox" class="car-check" value="20" data-type="3" data-name="4月12日早送" onchange="checkSchoolError(this); saveFormData()">
 <span>4月12日早送（20元）</span>
 </div>
 <div class="school-select" id="school3">
@@ -470,7 +470,7 @@ font-size: 15px;
 
 <div class="car-item">
 <div class="car-item-header">
-<input type="checkbox" class="car-check" value="20" data-type="4" data-name="4月12日晚接" onchange="onCarChange()">
+<input type="checkbox" class="car-check" value="20" data-type="4" data-name="4月12日晚接" onchange="checkSchoolError(this); saveFormData()">
 <span>4月12日晚接（20元）</span>
 </div>
 <div class="school-select" id="school4">
@@ -489,7 +489,7 @@ font-size: 15px;
 
 <div class="car-item">
 <div class="car-item-header">
-<input type="checkbox" class="car-check" value="3" data-type="5" data-name="4月11日中午考点更换" onchange="onCarChange()">
+<input type="checkbox" class="car-check" value="3" data-type="5" data-name="4月11日中午考点更换" onchange="checkSchoolError(this); saveFormData()">
 <span>4月11日中午考点更换（3元）</span>
 </div>
 <div class="school-select" id="school5">
@@ -517,7 +517,7 @@ font-size: 15px;
 
 <div class="car-item">
 <div class="car-item-header">
-<input type="checkbox" class="car-check" value="3" data-type="6" data-name="4月12日中午考点更换" onchange="onCarChange()">
+<input type="checkbox" class="car-check" value="3" data-type="6" data-name="4月12日中午考点更换" onchange="checkSchoolError(this); saveFormData()">
 <span>4月12日中午考点更换（3元）</span>
 </div>
 <div class="school-select" id="school6">
@@ -644,6 +644,15 @@ const FIXED_CAR_ORDER = [
 '4月11日早送','4月11日晚接','4月12日早送','4月12日晚接',
 '4月11日中午考点更换','4月12日中午考点更换'
 ];
+
+
+// 选择学校后，只隐藏当前项的红色错误
+function checkSchoolError(select) {
+    const tip = select.closest('.school-select').querySelector('.error-tip');
+    if (select.value.trim() !== '') {
+        tip.style.display = 'none';
+    }
+}
 
 // ==============================================
 // ✅ 新增：本地缓存 —— 关闭页面再打开自动恢复
@@ -774,7 +783,7 @@ function showAlert(message) {
     alertDiv.innerHTML = `
 <div class="alert-content">
 <div class="alert-text">${message}</div>
-<button class="alert-btn" onclick="this.closest('.custom-alert').remove();document.querySelectorAll('.error-tip').forEach(t=>t.style.display='none')">确定</button>
+<button class="alert-btn" onclick="this.closest('.custom-alert').remove()">确定</button>
 </div>`;
     document.body.appendChild(alertDiv);
 }

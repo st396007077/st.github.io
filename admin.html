@@ -226,7 +226,7 @@ max-width:550px;padding:40px 30px;
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script>
 const SERVER_URL = "https://zikaocar-server.onrender.com";
-let ADMIN_PWD = ""; // 密码不再明文写死！
+let ADMIN_PWD = "";
 let orderData = [], filteredOrderData = [];
 
 function login(){
@@ -377,6 +377,9 @@ function resetSearch() {
   renderTable();
 }
 
+// ======================
+// ✅ 优化：导出Excel 包含 付款截图链接
+// ======================
 function exportExcel() {
   if(!filteredOrderData.length) { showModal('提示','暂无数据'); return; }
   const excelData = filteredOrderData.map(o => {
@@ -387,19 +390,37 @@ function exportExcel() {
       if(i.from && i.to) return i.from+'→'+i.to;
       return '-';
     };
-    const payRecords = o.paymentRecords?.length ? o.paymentRecords.map((r,i)=>`第${i+1}笔：${r.payType} ${r.amount}元`).join('；') : '-';
+    const payRecords = o.paymentRecords?.length
+      ? o.paymentRecords.map((r,i)=>`第${i+1}笔：${r.payType} ${r.amount}元`).join('；')
+      : '-';
+
+    // 导出截图链接（多张用换行分隔）
+    const screenshotUrls = o.payScreenshots?.length
+      ? o.payScreenshots.join('\n')
+      : '无截图';
+
     return {
-      '订单ID':o.orderId,'姓名':o.userName,'电话':o.userPhone,'支付方式':o.payType,
-      '支付记录':payRecords,'总金额':o.total+'元','提交时间':o.createTime,
-      '4月11日早送':getInfo('4月11日早送'),'4月11日晚送':getInfo('4月11日晚送'),
-      '4月12日早送':getInfo('4月12日早送'),'4月12日晚送':getInfo('4月12日晚送')
+      '订单ID': o.orderId,
+      '姓名': o.userName,
+      '电话': o.userPhone,
+      '支付方式': o.payType,
+      '支付记录': payRecords,
+      '付款截图链接': screenshotUrls,  // ✅ 新增列
+      '总金额': o.total+'元',
+      '提交时间': o.createTime,
+      '4月11日早送': getInfo('4月11日早送'),
+      '4月11日晚接': getInfo('4月11日晚接'),
+      '4月12日早送': getInfo('4月12日早送'),
+      '4月12日晚接': getInfo('4月12日晚接'),
+      '4月11日中午': getInfo('4月11日中午考点更换'),
+      '4月12日中午': getInfo('4月12日中午考点更换')
     };
   });
   const ws = XLSX.utils.json_to_sheet(excelData);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'订单');
   XLSX.writeFile(wb,`订单_${new Date().toLocaleDateString()}.xlsx`);
-  showModal('成功','导出完成');
+  showModal('成功','导出完成（已包含付款截图链接）');
 }
 
 function showModal(t,m){

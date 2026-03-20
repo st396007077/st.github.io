@@ -390,11 +390,12 @@ function exportExcel() {
       if(i.from && i.to) return i.from+'→'+i.to;
       return '-';
     };
+    // 支付记录：每笔用 \n 换行
     const payRecords = o.paymentRecords?.length
-      ? o.paymentRecords.map((r,i)=>`第${i+1}笔：${r.payType} ${r.amount}元`).join('；')
+      ? o.paymentRecords.map((r,i)=>`第${i+1}笔：${r.payType} ${r.amount}元 ${r.time}`).join('\n')
       : '-';
 
-    // 导出截图链接（多张用换行分隔）
+    // 付款截图链接：多张用 \n 换行
     const screenshotUrls = o.payScreenshots?.length
       ? o.payScreenshots.join('\n')
       : '无截图';
@@ -404,8 +405,8 @@ function exportExcel() {
       '姓名': o.userName,
       '电话': o.userPhone,
       '支付方式': o.payType,
-      '支付记录': payRecords,
-      '付款截图链接': screenshotUrls,  // ✅ 新增列
+      '支付记录': payRecords,  // 已改为 \n 换行
+      '付款截图链接': screenshotUrls,
       '总金额': o.total+'元',
       '提交时间': o.createTime,
       '4月11日早送': getInfo('4月11日早送'),
@@ -416,11 +417,31 @@ function exportExcel() {
       '4月12日中午': getInfo('4月12日中午考点更换')
     };
   });
+
+  // 生成工作表
   const ws = XLSX.utils.json_to_sheet(excelData);
+
+  // ✅ 关键：给所有单元格设置自动换行样式
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  const wrapStyle = {
+    alignment: {
+      wrapText: true,  // 开启自动换行
+      vertical: 'top'  // 顶部对齐，更美观
+    }
+  };
+  for (let row = range.s.r; row <= range.e.r; row++) {
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cellAddr = XLSX.utils.encode_cell({ r: row, c: col });
+      if (ws[cellAddr]) {
+        ws[cellAddr].s = wrapStyle;
+      }
+    }
+  }
+
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'订单');
-  XLSX.writeFile(wb,`订单_${new Date().toLocaleDateString()}.xlsx`);
-  showModal('成功','导出完成（已包含付款截图链接）');
+  XLSX.utils.book_append_sheet(wb, ws, '订单');
+  XLSX.writeFile(wb, `订单_${new Date().toLocaleDateString()}.xlsx`);
+  showModal('成功','导出完成（支付记录已自动换行）');
 }
 
 function showModal(t,m){

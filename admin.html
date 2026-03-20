@@ -441,7 +441,7 @@ function exportExcel() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '订单');
   XLSX.writeFile(wb, `订单_${new Date().toLocaleDateString()}.xlsx`);
-  showModal('成功','导出完成（支付记录已自动换行）');
+  showModal('成功','导出完成');
 }
 
 function showModal(t,m){

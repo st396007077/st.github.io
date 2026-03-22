@@ -295,7 +295,35 @@ function logout(){
   }
 }
 
-// 核心恢复：订单合并逻辑（姓名+电话一致合并为一条）
+// ✅ 核心修改：新增班次合并工具函数
+function mergeCarLists(oldList, newList) {
+  // 1. 原有班次转Map（按名称索引）
+  const carMap = new Map();
+  oldList.forEach(car => {
+    if (car.name) {
+      carMap.set(car.name, car);
+    }
+  });
+
+  // 2. 新班次覆盖同名旧班次，新增班次直接添加
+  newList.forEach(car => {
+    if (car.name) {
+      carMap.set(car.name, car);
+    }
+  });
+
+  // 3. 按固定顺序排序（和前端一致）
+  const FIXED_CAR_ORDER = [
+    '4月11日早送','4月11日晚接','4月12日早送','4月12日晚接',
+    '4月11日中午考点更换','4月12日中午考点更换'
+  ];
+  
+  return FIXED_CAR_ORDER
+    .filter(name => carMap.has(name)) // 只保留已选班次
+    .map(name => carMap.get(name));   // 按固定顺序返回
+}
+
+// 核心修改：订单合并逻辑（保留所有班次，不再覆盖）
 function mergeOrders(orders) {
   const mergedMap = new Map();
   
@@ -317,13 +345,16 @@ function mergeOrders(orders) {
     if (mergedMap.has(key)) {
       // 已存在该用户，合并数据
       const existing = mergedMap.get(key);
+      // ✅ 关键修改：合并新旧班次列表
+      const mergedCarList = mergeCarLists(existing.carList || [], order.carList || []);
+      
       mergedMap.set(key, {
         ...existing,
         // 保留最后一次的基础信息
         orderId: existing.orderId + ',' + order.orderId, // 合并订单ID
         total: order.total || existing.total, // 保留最新金额
         createTime: order.createTime || existing.createTime, // 最后提交时间
-        carList: order.carList || existing.carList, // 保留最新班次
+        carList: mergedCarList, // ✅ 使用合并后的班次列表（不再覆盖）
         payType: order.payType || existing.payType, // 保留最新支付方式
         // 合并支付记录（保留所有提交记录）
         paymentRecords: [].concat(existing.paymentRecords || [], order.paymentRecords || []),

@@ -1011,6 +1011,13 @@ async function submitOrderSecure() {
             return; 
         }
 
+        // ✅ 核心修改：精准提示 - 区分首次提交/合并提交
+        if (orderData.msg.includes('合并到原有订单')) {
+            showAlert("提交成功！您已提交过信息，本次内容已合并更新到原有订单中");
+        } else {
+            showAlert("提交成功！您的订单已创建");
+        }
+
         // 2. 将截图文件转为Base64数组（核心修改）
         const screenshotBase64List = [];
         for (const file of screenshotFiles) {

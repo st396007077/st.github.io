@@ -245,7 +245,7 @@ display: none;
 <script>
 const SERVER_URL = "https://zikaocar-server.onrender.com";
 let ADMIN_PWD = "";
-let orderData = [], filteredOrderData = [];
+let originalOrderData = [], mergedOrderData = [], filteredOrderData = [];
 
 // 新增：显示/隐藏加载中
 function showLoading(text = "处理中...") {
@@ -295,7 +295,62 @@ function logout(){
   }
 }
 
-// 优化：加载订单增加加载提示，改为POST请求
+// 核心恢复：订单合并逻辑（姓名+电话一致合并为一条）
+function mergeOrders(orders) {
+  const mergedMap = new Map();
+  
+  orders.forEach(order => {
+    // 以姓名+电话作为唯一标识（忽略空值）
+    const key = `${order.userName || ''}_${order.userPhone || ''}`;
+    if (!key) {
+      // 无姓名/电话的订单单独处理
+      mergedMap.set(`empty_${order._id}`, {
+        ...order,
+        paymentRecords: [].concat(order.paymentRecords || []),
+        payScreenshots: [].concat(order.payScreenshots || []),
+        isMultiSubmit: false,
+        createTime: order.createTime
+      });
+      return;
+    }
+
+    if (mergedMap.has(key)) {
+      // 已存在该用户，合并数据
+      const existing = mergedMap.get(key);
+      mergedMap.set(key, {
+        ...existing,
+        // 保留最后一次的基础信息
+        orderId: existing.orderId + ',' + order.orderId, // 合并订单ID
+        total: order.total || existing.total, // 保留最新金额
+        createTime: order.createTime || existing.createTime, // 最后提交时间
+        carList: order.carList || existing.carList, // 保留最新班次
+        payType: order.payType || existing.payType, // 保留最新支付方式
+        // 合并支付记录（保留所有提交记录）
+        paymentRecords: [].concat(existing.paymentRecords || [], order.paymentRecords || []),
+        // 合并截图
+        payScreenshots: [].concat(existing.payScreenshots || [], order.payScreenshots || []),
+        // 标记为多次提交
+        isMultiSubmit: true,
+        // 保留手动修改标记（只要有一条是修改的，就标红）
+        isManuallyModified: existing.isManuallyModified || order.isManuallyModified
+      });
+    } else {
+      // 首次出现该用户，初始化
+      mergedMap.set(key, {
+        ...order,
+        paymentRecords: [].concat(order.paymentRecords || []),
+        payScreenshots: [].concat(order.payScreenshots || []),
+        isMultiSubmit: false, // 初始为单次提交
+        isManuallyModified: order.isManuallyModified || false
+      });
+    }
+  });
+
+  // 转换为数组并返回
+  return Array.from(mergedMap.values());
+}
+
+// 优化：加载订单增加加载提示，改为POST请求 + 恢复订单合并
 async function load() {
   showLoading("加载订单数据中...");
   try {
@@ -311,8 +366,12 @@ async function load() {
       logout(); 
       return; 
     }
-    orderData = data.data;
-    filteredOrderData = [...orderData];
+    // 保存原始数据，用于合并
+    originalOrderData = data.data;
+    // 合并同用户的多次提交
+    mergedOrderData = mergeOrders(originalOrderData);
+    // 初始化筛选数据
+    filteredOrderData = [...mergedOrderData];
     renderTable();
   } catch (err) {
     hideLoading();
@@ -344,7 +403,7 @@ function closeImgModal() {
   document.getElementById('imgModal').style.display = 'none';
 }
 
-// 优化：渲染表格增加空值处理，防止报错
+// 核心恢复：渲染表格时保留行颜色标记（蓝/红/白）+ 完整支付记录
 function renderTable() {
   const list = document.getElementById('list');
   list.innerHTML = '';
@@ -371,9 +430,14 @@ function renderTable() {
     };
 
     const tr = document.createElement('tr');
-    if (order.isManuallyModified) tr.className = 'row-modify';
-    else if (order.isMultiSubmit) tr.className = 'row-multi-submit';
-    else tr.className = 'row-first-submit';
+    // 恢复行颜色逻辑：手动修改(红) > 多次提交(蓝) > 首次提交(白)
+    if (order.isManuallyModified) {
+      tr.className = 'row-modify'; // 红色：数据库修改
+    } else if (order.isMultiSubmit) {
+      tr.className = 'row-multi-submit'; // 蓝色：多次提交
+    } else {
+      tr.className = 'row-first-submit'; // 白色：首次提交
+    }
 
     const getClassInfo = (name) => {
       const item = order.carList.find(i => i.name === name);
@@ -383,9 +447,13 @@ function renderTable() {
       return '-';
     };
 
+    // 恢复：支付记录保留每一次提交的完整信息
     const formatPaymentRecords = () => {
       if(!order.paymentRecords?.length) return '-';
-      return order.paymentRecords.map((r,i)=>`第${i+1}笔：${r.payType} ${r.amount}元 ${r.time}`).join('\n');
+      // 按提交顺序编号，保留每一笔的完整信息
+      return order.paymentRecords.map((r, i) => {
+        return `第${i+1}笔：${r.payType || '未知方式'} ${r.amount || 0}元 ${r.time || '未知时间'}`;
+      }).join('\n');
     };
 
     const renderScreenshots = () => {
@@ -461,11 +529,11 @@ async function deleteOrder(id) {
   }
 }
 
-// 优化：搜索功能增加模糊匹配，支持手机号部分匹配
+// 优化：搜索功能增加模糊匹配，支持手机号部分匹配（适配合并后的订单）
 function searchOrders() {
   const name = document.getElementById('searchName').value.trim().toLowerCase();
   const phone = document.getElementById('searchPhone').value.trim();
-  filteredOrderData = orderData.filter(o=>{
+  filteredOrderData = mergedOrderData.filter(o=>{
     const nameMatch = (o.userName || '').toLowerCase().includes(name);
     const phoneMatch = (o.userPhone || '').includes(phone);
     return nameMatch && phoneMatch;
@@ -476,11 +544,11 @@ function searchOrders() {
 function resetSearch() {
   document.getElementById('searchName').value = '';
   document.getElementById('searchPhone').value = '';
-  filteredOrderData = [...orderData];
+  filteredOrderData = [...mergedOrderData];
   renderTable();
 }
 
-// 修复：导出Excel 去除付款截图链接列，其余功能不变
+// 修复：导出Excel 去除付款截图链接列 + 保留合并后的支付记录
 function exportExcel() {
   if(!filteredOrderData.length) { 
     showModal('提示','暂无数据可导出'); 
@@ -501,6 +569,8 @@ function exportExcel() {
         total: 0,
         createTime: '',
         carList: [],
+        isMultiSubmit: false,
+        isManuallyModified: false,
         ...o
       };
 
@@ -512,9 +582,9 @@ function exportExcel() {
         return '-';
       };
 
-      // 支付记录：每笔用 \n 换行
+      // 保留所有支付记录（合并后的完整提交信息）
       const payRecords = o.paymentRecords?.length
-        ? o.paymentRecords.map((r,i)=>`第${i+1}笔：${r.payType} ${r.amount}元 ${r.time}`).join('\n')
+        ? o.paymentRecords.map((r,i)=>`第${i+1}笔：${r.payType || '未知方式'} ${r.amount || 0}元 ${r.time || '未知时间'}`).join('\n')
         : '-';
 
       return {
@@ -531,7 +601,9 @@ function exportExcel() {
         '4月12日早送': getInfo('4月12日早送'),
         '4月12日晚接': getInfo('4月12日晚接'),
         '4月11日中午': getInfo('4月11日中午考点更换'),
-        '4月12日中午': getInfo('4月12日中午考点更换')
+        '4月12日中午': getInfo('4月12日中午考点更换'),
+        // 新增：导出时标记订单状态（便于核对）
+        '订单状态': o.isManuallyModified ? '手动修改' : (o.isMultiSubmit ? '多次提交' : '首次提交')
       };
     });
 
@@ -570,7 +642,8 @@ function exportExcel() {
       {wch: 18}, // 4月12日早送
       {wch: 18}, // 4月12日晚接
       {wch: 18}, // 4月11日中午
-      {wch: 18}  // 4月12日中午
+      {wch: 18}, // 4月12日中午
+      {wch: 12}  // 订单状态
     ];
 
     const wb = XLSX.utils.book_new();

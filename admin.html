@@ -56,6 +56,9 @@ padding:8px 16px;background:#007bff;color:white;border:none;border-radius:5px;cu
 .refresh-amount-btn {
 background:#28a745;padding:6px 10px;font-size:12px;margin-right:5px;
 }
+.modify-btn {
+background:#ffc107;padding:6px 10px;font-size:12px;margin-right:5px;
+}
 button.del-btn{ background:#dc3545;padding:6px 10px;font-size:12px; }
 button.exit-btn{background:#6c757d}
 .table-container{ overflow-x:auto;margin:10px 0; }
@@ -72,7 +75,7 @@ th{background:#f8f9fa}
 .pay-record-col{width:250px;}
 .pay-screenshot-col{width:220px;}
 .money-col{width:80px}
-.oper-col{width:140px}
+.oper-col{width:160px}
 .class-col{width:120px}
 .pay-record {
 white-space:pre-line;text-align:left;padding:5px;line-height:1.4;
@@ -191,13 +194,46 @@ position: fixed;top: 50%;left: 50%;transform: translate(-50%, -50%);background: 
 </div>
 </div>
 
+<!-- 新增：修改订单弹窗 -->
+<div class="modal" id="modifyModal">
+  <div class="modal-content" style="max-width: 600px;">
+    <h3>修改订单信息</h3>
+    <div style="text-align: left; margin: 20px 0;">
+      <p style="margin-bottom: 10px; color: #333; font-size: 14px;">
+        <strong>订单号：</strong><span id="modifyOrderId"></span>
+      </p>
+      <p style="margin-bottom: 20px; color: #666; font-size: 13px;">
+        注意：修改班次信息后，该行会自动标记为红色
+      </p>
+      
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold;">当前班次信息（JSON格式）</label>
+        <textarea id="modifyCarList" style="width: 100%; height: 250px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: monospace; font-size: 12px; line-height: 1.4;" placeholder="[&#10;  {&#10;    &quot;name&quot;: &quot;4月11日早送&quot;,&#10;    &quot;price&quot;: &quot;20&quot;,&#10;    &quot;school&quot;: &quot;绣水中学&quot;&#10;  }&#10;]"></textarea>
+        <p style="font-size: 12px; color: #666; margin-top: 5px;">
+          格式：包含name、price、school/from/to字段的JSON数组
+        </p>
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold;">管理密码确认</label>
+        <input type="password" id="modifyPassword" placeholder="请输入管理密码" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+      </div>
+    </div>
+    
+    <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
+      <button onclick="closeModifyModal()" style="padding: 10px 30px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">取消</button>
+      <button onclick="submitModifyOrder()" style="padding: 10px 30px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">确认修改</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script>
 const SERVER_URL = "https://zikaocar-server.onrender.com";
 let ADMIN_PWD = "";
 let originalOrderData = [], mergedOrderData = [], filteredOrderData = [];
 
-// 🔴【修复问题1】实时计算总金额工具函数
+// 实时计算总金额工具函数
 function calculateRealTotal(carList) {
   let total = 0;
   (carList || []).forEach(item => {
@@ -256,7 +292,7 @@ function mergeCarLists(oldList, newList) {
   return FIXED_CAR_ORDER.filter(n => carMap.has(n)).map(n => carMap.get(n));
 }
 
-// 🔴【修复问题3】正确继承手动修改标记
+// 正确继承手动修改标记
 function mergeOrders(orders) {
   const mergedMap = new Map();
   orders.forEach(order => {
@@ -381,11 +417,88 @@ function renderTable() {
      <td>${getClassInfo('4月12日中午考点更换')}</td>
      <td>
        <button class="refresh-amount-btn" onclick="refreshAmount('${order.orderId}')">刷新金额</button>
+       <button class="modify-btn" onclick="openModifyModal('${order._id}', '${order.orderId}')">修改</button>
        <button class="del-btn" onclick="deleteOrder('${order._id}')">删除</button>
      </td>
    `;
     list.appendChild(tr);
   });
+}
+
+// 打开修改订单弹窗
+function openModifyModal(id, orderId) {
+  // 找到对应的订单数据
+  const originalOrder = originalOrderData.find(order => order._id === id);
+  if (!originalOrder) {
+    showModal('错误', '找不到订单数据');
+    return;
+  }
+  
+  // 填充数据
+  document.getElementById('modifyOrderId').innerText = orderId;
+  document.getElementById('modifyCarList').value = JSON.stringify(originalOrder.carList || [], null, 2);
+  document.getElementById('modifyPassword').value = '';
+  
+  // 显示弹窗
+  document.getElementById('modifyModal').style.display = 'flex';
+}
+
+// 关闭修改弹窗
+function closeModifyModal() {
+  document.getElementById('modifyModal').style.display = 'none';
+}
+
+// 提交修改
+async function submitModifyOrder() {
+  const orderId = document.getElementById('modifyOrderId').innerText;
+  const carListStr = document.getElementById('modifyCarList').value;
+  const password = document.getElementById('modifyPassword').value;
+  
+  if (!password) {
+    showModal('提示', '请输入管理密码');
+    return;
+  }
+  
+  // 验证JSON格式
+  let carList;
+  try {
+    carList = JSON.parse(carListStr);
+    if (!Array.isArray(carList)) {
+      throw new Error('必须是数组格式');
+    }
+  } catch (e) {
+    showModal('格式错误', '请检查JSON格式是否正确');
+    return;
+  }
+  
+  showLoading("正在修改...");
+  try {
+    const response = await fetch(`${SERVER_URL}/api/updateOrder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pwd: password,
+        orderId: orderId,
+        updates: {
+          carList: carList
+        }
+      })
+    });
+    
+    const data = await response.json();
+    hideLoading();
+    
+    if (data.code === 0) {
+      showModal('修改成功', '订单修改完成，该行将自动标记为红色');
+      closeModifyModal();
+      load(); // 重新加载数据
+    } else {
+      showModal('修改失败', data.msg || '未知错误');
+    }
+  } catch (error) {
+    hideLoading();
+    showModal('网络错误', '修改失败，请检查网络连接');
+  }
 }
 
 async function refreshAmount(orderId) {

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
 <title>山青院自考本科考试专车自助订阅</title>
 <style>
+/* 样式部分保持不变，与您提供的完全一致 */
 * {
 margin: 0;
 padding: 0;
@@ -637,6 +638,7 @@ font-size: 15px;
 const SERVER_URL = "https://zikaocar-server.onrender.com";
 let selectedPayType = '';
 let existedCarNames = [];
+let existedCarList = []; // 🔥 新增：存储历史订单的完整班次信息
 let hasUploadedScreenshot = false;
 let screenshotFiles = [];
 let isSubmitting = false;
@@ -862,13 +864,21 @@ async function loadUserHistory() {
         const res = await fetch(`${SERVER_URL}/api/queryOrder?userName=${encodeURIComponent(name)}`);
         const data = await res.json();
         existedCarNames = [];
+        existedCarList = []; // 🔥 重置历史班次列表
+        
         if(data.code ===0 && data.data.length>0) {
             const u = data.data.find(item=>item.userPhone === phone);
-            if(u) existedCarNames = u.carList.map(i=>i.name);
+            if(u) {
+                existedCarNames = u.carList.map(i=>i.name);
+                existedCarList = u.carList; // 🔥 保存完整的班次信息
+            }
         }
         document.querySelectorAll('.car-check').forEach(box => {
             const n = box.dataset.name;
-            if(existedCarNames.includes(n)) { box.disabled=true; box.checked=false; }
+            if(existedCarNames.includes(n)) { 
+                box.disabled=true; 
+                box.checked=false; 
+            }
             else box.disabled=false;
         });
         calcTotal();
@@ -1048,7 +1058,7 @@ async function submitOrderSecure() {
         // 提交成功，展示结果
         document.getElementById('screenshotModal').style.display = 'none';
         
-        // ✅ 核心修改：根据提交类型显示不同的班次信息
+        // ✅ 核心修复：根据提交类型显示不同的班次信息
         let info = `
 <strong>乘车人：</strong>${name}<br>
 <strong>电话：</strong>${phone.replace(/(\d{3})\d{4}(\d{4})/,'$1****$2')}<br>
@@ -1058,19 +1068,20 @@ async function submitOrderSecure() {
 <strong>提交时间：</strong>${createTime}<br>`;
         
         if (orderData.msg.includes('合并到原有订单')) {
-            // ✅ 多次提交/追加：区分"已选班次"和"新增班次"
-            const existingCars = [];
-            const newCars = [];
+            // ✅ 多次提交/追加：显示"已选班次"（所有历史已有班次）和"新增班次"（本次新增班次）
             
+            // 🔥 修复：获取所有历史已有班次（完整的班次信息）
+            const existingCars = existedCarList; // 使用保存的历史班次完整信息
+            
+            // 获取本次新增的班次（本次提交的班次中，不在历史班次中的）
+            const newCars = [];
             carList.forEach(item => {
-                if (existedCarNames.includes(item.name)) {
-                    existingCars.push(item);
-                } else {
+                if (!existedCarNames.includes(item.name)) {
                     newCars.push(item);
                 }
             });
             
-            // 显示"已选班次"（除最后一次提交的班次外的所有班次）
+            // 显示"已选班次"（历史已有班次）
             if (existingCars.length > 0) {
                 info += `<strong>已选班次：</strong><br>`;
                 FIXED_CAR_ORDER.forEach(n => {
@@ -1083,7 +1094,7 @@ async function submitOrderSecure() {
                 });
             }
             
-            // 显示"新增班次"（最后一次提交的班次信息）
+            // 显示"新增班次"（本次新增的班次）
             if (newCars.length > 0) {
                 info += `<strong>新增班次：</strong><br>`;
                 FIXED_CAR_ORDER.forEach(n => {

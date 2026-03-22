@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>山青院订单管理后台</title>
 <style>
+/* CSS 部分保持不变，与您提供的完全一致 */
 *{margin:0;padding:0;box-sizing:border-box}
 body{
 padding: 20px 10px;
@@ -345,7 +346,8 @@ async function load() {
           new Date(b.createTime) - new Date(a.createTime)
         )[0];
         
-        const mergedCarList = mergeCarLists([], orders.flatMap(o => o.carList || []);
+        // 🔥 修复：第348行，添加缺失的右括号
+        const mergedCarList = mergeCarLists([], orders.flatMap(o => o.carList || []));
         
         // ✅ 修复：检查是否任何一个订单被手动修改过
         const hasManualModification = orders.some(o => o.isManuallyModified);
